@@ -115,8 +115,12 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
 
     def on_close(self):
         log.debug(f'WebSocket {self} closed')
-        if self.viewer is not None:
-            self.viewer.unobserve('modified', self.on_dom_modified)
+        viewer = self.viewer
+        if viewer is not None:
+            viewer.unobserve('modified', self.on_dom_modified)
+            ref = viewer.ref
+            if ref in CACHE:
+                del CACHE[ref]
 
 
 def run():
