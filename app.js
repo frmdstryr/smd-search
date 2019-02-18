@@ -1,5 +1,6 @@
 function initViewer(ref) {
-    var ws = new WebSocket("ws://localhost:8888/websocket/?ref="+ref);
+    var proto = (window.location.protocol == "https:")? "wss://": "ws://";
+    var ws = new WebSocket(proto+window.location.host+"/websocket/?ref="+ref);
     ws.onopen = function(evt) {
         console.log("Connected!");
     };
