@@ -1,0 +1,175 @@
+import operator
+import pandas as pd
+from atom.api import Atom, ContainerList, Typed, observe
+from enaml.application import timed_call
+from web.core.api import Looper, Conditional
+from web.components.api import *
+
+
+class SearchModel(Atom):
+    # Dataframe to search
+    dataframe = Typed(pd.DataFrame)
+
+    # Search parameters for each column
+    parameters = ContainerList(str)
+
+    # Saved results
+    saved = ContainerList()
+
+    # Results of the search
+    results = Typed(pd.DataFrame)
+
+    def _default_parameters(self):
+        return ['' for c in self.dataframe.columns]
+
+    @observe('parameters')
+    def _update_search_results(self, change):
+        self.results = self._default_results()
+
+    def _default_results(self):
+        df = self.dataframe
+        cols = df.columns
+        filters = [df[cols[i]].str.contains(q.strip(), na=False)
+                 for i, q in enumerate(self.parameters) if q.strip()]
+        for f in filters:
+            df = df[f]
+        return df
+
+
+enamldef Viewer(Html): viewer:
+    attr request # The tornado request
+    attr response # The tornado response handler
+    attr dataframe # The pandas dataframe
+    attr search = SearchModel(dataframe=dataframe)
+    attr loading = False
+    attr view_counts = [10, 25, 50, 100]
+    attr view_count = view_counts[1]
+    Head:
+        Title:
+            text = "SMD Part search"
+        Script:
+            src = 'https://code.jquery.com/jquery-3.3.1.min.js'
+            type = 'text/javascript'
+        Script:
+            src = '/static/app.js'
+            type = 'text/javascript'
+        Script:
+            text = '''
+            $(document).ready(function(){
+                initViewer(%s);
+            });
+            '''% viewer.ref
+
+        Link:
+            rel="stylesheet"
+            href="//stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css"
+            attrs = dict(
+                integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS",
+                crossorigin="anonymous"
+            )
+    Body:
+        Nav:
+            cls = 'navbar navbar-dark fixed-top bg-dark flex-md-nowrap p-0 shadow'
+            A:
+                cls = 'navbar-brand col-sm-3 col-md-2 mr-0'
+                href = '#'
+                text = 'SMD Part search'
+        Div:
+            cls = 'container-fluid'
+            Div:
+                cls = 'row'
+                Div:
+                    cls = 'col-md-2 bg-light sidebar'
+                    style = 'padding-top: 48px;'
+                    Div:
+                        cls = 'sidebar-sticky'
+                        H6:
+                            cls = 'sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted'
+                            text = 'Saved components'
+
+                        Ul:
+                            cls = 'nav flex-column mb-2'
+                            Looper:
+                                iterable << search.saved[:]
+                                Li:
+                                    cls = 'nav-item'
+                                    Span:
+                                        cls = 'nav-link'
+                                        text = 'Code: {} Dev: {} Mfg: {} Base: {} Pkg: {} Desc: {}'.format(*loop_item)
+                                    Div:
+                                        cls = 'nav-link'
+                                        Button:
+                                            cls = 'btn btn-sm btn-danger '
+                                            text = 'Remove'
+                                            clickable = True
+                                            clicked ::
+                                                try:
+                                                    search.saved.remove(loop_item)
+                                                except:
+                                                    pass
+
+                Div:
+                    cls = 'col-md-10 px-4'
+                    style = 'padding-top: 48px;'
+                    P:
+                        text = 'Type a SMD component code to search for a value'
+                    P:
+                        text << 'Showing {} of {} results'.format(
+                                search.results.shape[0],
+                                dataframe.shape[0]
+                            )
+                    Select:
+                        value << str(viewer.view_count)
+                        value :: viewer.view_count = int(change['value'])
+                        Looper:
+                            iterable << view_counts
+                            Option:
+                                value = str(loop_item)
+                                text = str(loop_item)
+                                selected << view_count == loop_item
+                    Table:
+                        cls = 'table table-striped table-sm'
+                        THead:
+                            Tr:
+                                Looper:
+                                    iterable << dataframe.columns
+                                    Th:
+                                        Label:
+                                            text << str(loop_item)
+                                        Br:
+                                            pass
+                                        Input:
+                                            type = 'text'
+                                            value := search.parameters[loop_index]
+                                Th:
+                                    text = ''
+                        TBody:
+                            func lookup_safe(df, row, col):
+                                try:
+                                    return str(df.iloc[row, col])
+                                except:
+                                    return '-'
+
+                            Looper:
+                                # The number of rows shown is defined by pandas's config
+                                iterable << range(view_count)
+                                Tr:
+                                    attr row = loop_index
+                                    Looper:
+                                        iterable << dataframe.columns
+                                        Td:
+                                            attr col = loop_index
+                                            text << lookup_safe(search.results, row, col)
+                                    Td:
+                                        Button:
+                                            cls = 'btn btn-sm btn-info'
+                                            text = 'Save'
+                                            clickable = True
+                                            clicked ::
+                                                try:
+                                                    item = search.results.iloc[row]
+                                                    search.saved.append(tuple(item))
+                                                except IndexError as e:
+                                                    pass
+
+
