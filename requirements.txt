@@ -1,1 +1,3 @@
-
+enaml-web
+pandas
+tornado
