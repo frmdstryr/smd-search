@@ -130,7 +130,7 @@ def run():
         (r'/static/(.*)', tornado.web.StaticFileHandler, {
             'path': os.path.dirname(__file__)}),
     ])
-    app.listen(5000)
+    app.listen(int(os.environ.get('PORT', 5000)))
     tornado.ioloop.IOLoop.current().start()
 
 
