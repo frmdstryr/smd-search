@@ -50,9 +50,9 @@ enamldef ResistorCalculator(Div):
                 v = round(float(value.replace('R', '.')), 2)
                 v = str(v).rstrip('0').rstrip('.')
             else:
-                v = int(value[0:2])
-                if n == 4:
-                    v += float('0.'+value[2])
+                v = int(value[0:-1])
+                #if n == 4:
+                #    v += float('0.'+value[2])
                 v *= 10**int(value[-1])
                 if v >= 1e6:
                     u = 'M'
@@ -92,9 +92,7 @@ enamldef CapacitorCalculator(Div):
                 v = round(float(value.replace('R', '.')), 2)
                 v = str(v).rstrip('0').rstrip('.')
             else:
-                v = int(value[0:2])
-                if n == 4:
-                    v += float('0.'+value[2])
+                v = int(value[0:-1])
                 v *= 10**int(value[-1])
                 if v >= 1e6:
                     u = '' if is_aluminum else 'u'
