@@ -7,33 +7,6 @@ from web.core.api import Looper, Conditional
 from web.components.api import *
 
 
-def smd_resistance(value):
-    try:
-        value = value.upper()
-        n = len(value)
-        if n not in (3, 4):
-            return '-'
-        if 'R' in value:
-            v = round(float(value.replace('R', '.')), 2)
-            v = str(v).rstrip('0').rstrip('.')
-            return f'{v}Ω'
-        else:
-            v = int(value[0:2])
-            if n == 4:
-                v += float('0.'+value[2])
-            v *= 10**int(value[-1])
-            if v >= 1e6:
-                s = str(round(v/1e6, 2)).rstrip('0').rstrip('.')
-                return f'{s}MΩ'
-            if v >= 1e3:
-                s = str(round(v/1e3, 2)).rstrip('0').rstrip('.')
-                return f'{s}kΩ'
-            return f'{v}Ω'
-    except Exception as e:
-        log.error(e)
-    return '-'
-
-
 class SearchModel(Atom):
     # Dataframe to search
     dataframe = Typed(pd.DataFrame)
@@ -64,6 +37,97 @@ class SearchModel(Atom):
         return df
 
 
+enamldef ResistorCalculator(Div):
+    tag = 'div'
+    func calculate(value):
+        try:
+            value = value.upper()
+            n = len(value)
+            if n not in (3, 4):
+                return '-'
+            u = ''
+            if 'R' in value:
+                v = round(float(value.replace('R', '.')), 2)
+                v = str(v).rstrip('0').rstrip('.')
+            else:
+                v = int(value[0:2])
+                if n == 4:
+                    v += float('0.'+value[2])
+                v *= 10**int(value[-1])
+                if v >= 1e6:
+                    u = 'M'
+                    v = str(round(v/1e6, 2)).rstrip('0').rstrip('.')
+                elif v >= 1e3:
+                    u = 'k'
+                    v = str(round(v/1e3, 2)).rstrip('0').rstrip('.')
+            return f'{v}{u}Ω'
+        except Exception as e:
+            log.error(e)
+        return '-'
+
+    H4:
+        text = 'SMD Resistor calculator'
+    Label:
+        style = 'padding-right: 1em'
+        text = 'Code:'
+    Input: input:
+        type = 'text'
+        value = '470'
+    P:
+        text << f'Resistance: {calculate(input.value)}'
+
+
+enamldef CapacitorCalculator(Div):
+    tag = 'div'
+    func calculate(value, cap_type):
+        try:
+            value = value.upper()
+            n = len(value)
+            if n not in (3, 4):
+                return '-'
+            # Aluminum caps are different
+            is_aluminum = int(cap_type) == 1
+            u = 'u' if is_aluminum else 'p'
+            if 'R' in value:
+                v = round(float(value.replace('R', '.')), 2)
+                v = str(v).rstrip('0').rstrip('.')
+            else:
+                v = int(value[0:2])
+                if n == 4:
+                    v += float('0.'+value[2])
+                v *= 10**int(value[-1])
+                if v >= 1e6:
+                    u = '' if is_aluminum else 'u'
+                    v = str(round(v/1e6, 2)).rstrip('0').rstrip('.')
+                elif v >= 1e3:
+                    u = 'm' if is_aluminum else 'n'
+                    v = str(round(v/1e3, 2)).rstrip('0').rstrip('.')
+            return f'{v}{u}F'
+        except Exception as e:
+            log.error(e)
+        return '-'
+    H4:
+        text = 'SMD Capacitor calculator'
+    Label:
+        style = 'padding-right: 1em'
+        text = 'Code:'
+    Input: input:
+        type = 'text'
+        value = '102'
+    Label:
+        style = 'padding: 0 1em'
+        text = 'Type:'
+    Select: select:
+        value = '0'
+        Looper:
+            iterable = ('Tantalum, ceramic, film', 'Aluminum')
+            Option:
+                value = f'{loop_index}'
+                text = f'{loop_item}'
+    P:
+        text << f'Capacitance: {calculate(input.value, select.value)}'
+
+
 enamldef Viewer(Html): viewer:
     attr request # The tornado request
     attr response # The tornado response handler
@@ -74,7 +138,7 @@ enamldef Viewer(Html): viewer:
     attr view_count = view_counts[1]
     Head:
         Title:
-            text = "SMD Part search"
+            text = "SMD Component Tools"
         Script:
             src = 'https://code.jquery.com/jquery-3.3.1.min.js'
             type = 'text/javascript'
@@ -101,7 +165,7 @@ enamldef Viewer(Html): viewer:
             A:
                 cls = 'navbar-brand col-sm-3 col-md-2 mr-0'
                 href = '#'
-                text = 'SMD Part search'
+                text = 'SMD Component Tools'
         Div:
             cls = 'container-fluid'
             Div:
@@ -139,73 +203,80 @@ enamldef Viewer(Html): viewer:
                 Div:
                     cls = 'col-md-10 px-4'
                     style = 'padding-top: 48px;'
-                    H4:
-                        text = 'SMD Resistor calculator'
-                    Input: resistor_input:
-                        type = 'text'
-                        value = '470'
-                    P:
-                        text << f'Resistance: {smd_resistance(resistor_input.value)}'
+                    Hr:
+                        pass
+                    Div:
+                        cls = 'row'
+                        ResistorCalculator:
+                            cls = 'col-md-6'
 
-                    H4:
-                        text = 'SMD Component search'
-                    P:
-                        text << 'Showing {} of {} results'.format(
-                                search.results.shape[0],
-                                dataframe.shape[0]
-                            )
-                    Select:
-                        value << str(viewer.view_count)
-                        value :: viewer.view_count = int(change['value'])
-                        Looper:
-                            iterable << view_counts
-                            Option:
-                                value = str(loop_item)
-                                text = str(loop_item)
-                                selected << view_count == loop_item
-                    Table:
-                        cls = 'table table-striped table-sm'
-                        THead:
-                            Tr:
+                        CapacitorCalculator:
+                            cls = 'col-md-6'
+                    Hr:
+                        pass
+                    Div:
+                        cls = 'row'
+                        Div:
+                            cls = 'col-sm-12'
+                            H4:
+                                text = 'SMD Component search'
+                            P:
+                                text << 'Showing {} of {} results'.format(
+                                        search.results.shape[0],
+                                        dataframe.shape[0]
+                                    )
+                            Select:
+                                value << str(viewer.view_count)
+                                value :: viewer.view_count = int(change['value'])
                                 Looper:
-                                    iterable << dataframe.columns
-                                    Th:
-                                        Label:
-                                            text << str(loop_item)
-                                        Br:
-                                            pass
-                                        Input:
-                                            type = 'text'
-                                            value := search.parameters[loop_index]
-                                Th:
-                                    text = ''
-                        TBody:
-                            func lookup_safe(df, row, col):
-                                try:
-                                    return str(df.iloc[row, col])
-                                except:
-                                    return '-'
-
-                            Looper:
-                                # The number of rows shown is defined by pandas's config
-                                iterable << range(view_count)
-                                Tr:
-                                    attr row = loop_index
-                                    Looper:
-                                        iterable << dataframe.columns
-                                        Td:
-                                            attr col = loop_index
-                                            text << lookup_safe(search.results, row, col)
-                                    Td:
-                                        Button:
-                                            cls = 'btn btn-sm btn-info'
-                                            text = 'Save'
-                                            clickable = True
-                                            clicked ::
-                                                try:
-                                                    item = search.results.iloc[row]
-                                                    search.saved.append(tuple(item))
-                                                except IndexError as e:
+                                    iterable << view_counts
+                                    Option:
+                                        value = str(loop_item)
+                                        text = str(loop_item)
+                                        selected << view_count == loop_item
+                            Table:
+                                cls = 'table table-striped table-sm'
+                                THead:
+                                    Tr:
+                                        Looper:
+                                            iterable << dataframe.columns
+                                            Th:
+                                                Label:
+                                                    text << str(loop_item)
+                                                Br:
                                                     pass
+                                                Input:
+                                                    type = 'text'
+                                                    value := search.parameters[loop_index]
+                                        Th:
+                                            text = ''
+                                TBody:
+                                    func lookup_safe(df, row, col):
+                                        try:
+                                            return str(df.iloc[row, col])
+                                        except:
+                                            return '-'
+
+                                    Looper:
+                                        # The number of rows shown is defined by pandas's config
+                                        iterable << range(view_count)
+                                        Tr:
+                                            attr row = loop_index
+                                            Looper:
+                                                iterable << dataframe.columns
+                                                Td:
+                                                    attr col = loop_index
+                                                    text << lookup_safe(search.results, row, col)
+                                            Td:
+                                                Button:
+                                                    cls = 'btn btn-sm btn-info'
+                                                    text = 'Save'
+                                                    clickable = True
+                                                    clicked ::
+                                                        try:
+                                                            item = search.results.iloc[row]
+                                                            search.saved.append(tuple(item))
+                                                        except IndexError as e:
+                                                            pass
 
 
