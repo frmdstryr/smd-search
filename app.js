@@ -1,6 +1,7 @@
 function initViewer(ref) {
     var proto = (window.location.protocol == "https:")? "wss://": "ws://";
     var ws = new WebSocket(proto+window.location.host+"/websocket/?ref="+ref);
+    console.log("Connecting...");
     ws.onopen = function(evt) {
         console.log("Connected!");
     };
@@ -37,6 +38,10 @@ function initViewer(ref) {
                 }
                 $tag.prop(change.name,change.value);
             }
+        } else if (change.type === 'error') {
+            console.log(change.message);
+        } else if (change.type === 'reload') {
+            location.reload();
         } else {
             console.log("Unknown change type");
         }

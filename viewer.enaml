@@ -2,8 +2,36 @@ import operator
 import pandas as pd
 from atom.api import Atom, ContainerList, Typed, observe
 from enaml.application import timed_call
+from tornado.web import app_log as log
 from web.core.api import Looper, Conditional
 from web.components.api import *
+
+
+def smd_resistance(value):
+    try:
+        value = value.upper()
+        n = len(value)
+        if n not in (3, 4):
+            return '-'
+        if 'R' in value:
+            v = round(float(value.replace('R', '.')), 2)
+            v = str(v).rstrip('0').rstrip('.')
+            return f'{v}Ω'
+        else:
+            v = int(value[0:2])
+            if n == 4:
+                v += float('0.'+value[2])
+            v *= 10**int(value[-1])
+            if v >= 1e6:
+                s = str(round(v/1e6, 2)).rstrip('0').rstrip('.')
+                return f'{s}MΩ'
+            if v >= 1e3:
+                s = str(round(v/1e3, 2)).rstrip('0').rstrip('.')
+                return f'{s}kΩ'
+            return f'{v}Ω'
+    except Exception as e:
+        log.error(e)
+    return '-'
 
 
 class SearchModel(Atom):
@@ -56,7 +84,7 @@ enamldef Viewer(Html): viewer:
         Script:
             text = '''
             $(document).ready(function(){
-                initViewer(%s);
+                initViewer("%s");
             });
             '''% viewer.ref
 
@@ -111,8 +139,16 @@ enamldef Viewer(Html): viewer:
                 Div:
                     cls = 'col-md-10 px-4'
                     style = 'padding-top: 48px;'
+                    H4:
+                        text = 'SMD Resistor calculator'
+                    Input: resistor_input:
+                        type = 'text'
+                        value = '470'
                     P:
-                        text = 'Type a SMD component code to search for a value'
+                        text << f'Resistance: {smd_resistance(resistor_input.value)}'
+
+                    H4:
+                        text = 'SMD Component search'
                     P:
                         text << 'Showing {} of {} results'.format(
                                 search.results.shape[0],

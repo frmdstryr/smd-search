@@ -68,7 +68,7 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
         ref = self.get_argument("ref")
         if ref not in CACHE:
             log.error(f"Viewer with ref={ref} does not exist!")
-            self.close()
+            self.write_message(json.dumps({'type': 'reload'}))
             return
 
         # Get a viewer reference
@@ -84,26 +84,29 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
         """
         change = json.loads(message)
         log.debug(f'Update from js: {change}')
+        try:
+            # Lookup the node
+            ref = change.get('ref')
+            if not ref:
+                return
+            nodes = self.viewer.xpath('//*[@ref=$ref]', ref=ref)
+            if not nodes:
+                return  # Unknown node
+            node = nodes[0]
 
-        # Lookup the node
-        ref = change.get('ref')
-        if not ref:
-            return
-        nodes = self.viewer.xpath('//*[@ref=$ref]', ref=ref)
-        if not nodes:
-            return  # Unknown node
-        node = nodes[0]
-
-        # Trigger the change on the enaml node
-        if change.get('type') and change.get('name'):
-            if change['type'] == 'event':
-                trigger = getattr(node, change['name'])
-                trigger()
-            elif change['type'] == 'update':
-                # Trigger the update
-                setattr(node, change['name'], change['value'])
-        else:
-            log.warning(f"Unhandled event {self} {node}: {change}")
+            # Trigger the change on the enaml node
+            if change.get('type') and change.get('name'):
+                if change['type'] == 'event':
+                    trigger = getattr(node, change['name'])
+                    trigger()
+                elif change['type'] == 'update':
+                    # Trigger the update
+                    setattr(node, change['name'], change['value'])
+            else:
+                log.warning(f"Unhandled event {self} {node}: {change}")
+        except Exception as e:
+            msg = {'type': 'error', 'message': f'{e}'}
+            self.write_message(json.dumps(msg))
 
     def on_dom_modified(self, change):
         """ When an event from enaml occurs, send it out the websocket
@@ -126,6 +129,8 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
 def run():
     # Needed to create enaml components
     enaml_app = WebApplication()
+
+    log.setLevel('DEBUG')
 
     # Start the tornado app
     app = tornado.web.Application([
