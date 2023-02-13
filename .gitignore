@@ -102,3 +102,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+__enamlcache__/
+*.enalmc
+
+.kdev4/
+*.kdev4

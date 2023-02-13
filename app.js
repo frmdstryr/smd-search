@@ -1,6 +1,6 @@
 function initViewer(ref) {
     var proto = (window.location.protocol == "https:")? "wss://": "ws://";
-    var ws = new WebSocket(proto+window.location.host+"/websocket/?ref="+ref);
+    var ws = new WebSocket(proto+window.location.host+"/websocket/?id="+ref);
     console.log("Connecting...");
     ws.onopen = function(evt) {
         console.log("Connected!");
@@ -9,7 +9,7 @@ function initViewer(ref) {
     ws.onmessage = function(evt) {
         var change = JSON.parse(evt.data);
         console.log(change);
-        var $tag = $('[ref="'+change.ref+'"]');
+        var $tag = $('#'+change.id);
         change.object = $tag;
 
         if (change.type === 'refresh') {
@@ -19,7 +19,7 @@ function initViewer(ref) {
         } else if (change.type === 'added') {
             $tag.append($(change.value));
         } else if (change.type === 'removed') {
-            $tag.find('[ref="'+change.value+'"]').remove();
+            $tag.find('#'+change.value).remove();
         } else if (change.type === 'update') {
             if (change.name==="text") {
                 var node = $tag.contents().get(0);
@@ -58,7 +58,7 @@ function initViewer(ref) {
 
     function sendNodeValue(){
         sendEvent({
-            'ref':$(this).attr('ref'),
+            'id':this.id,
             'type':'update',
             'name':'value',
             'value':$(this).val(),
@@ -68,14 +68,14 @@ function initViewer(ref) {
     $(document).on('click', '[clickable]',function(e){
         e.preventDefault();
         sendEvent({
-            'ref':$(this).attr('ref'),
+            'id':this.id,
             'type':'event',
             'name':'clicked'
         });
     });
     $(document).on('change', ":checkbox", function(){
         sendEvent({
-        'ref':$(this).attr('ref'),
+        'id':this.id,
         'type':'update',
         'name':'checked',
         'value':($(this).prop('checked'))?'checked':'',
@@ -85,7 +85,7 @@ function initViewer(ref) {
     $(document).on('input', 'input', sendNodeValue);
     $(document).on('change', 'textarea', function() {
         sendEvent({
-            'ref':$(this).attr('ref'),
+            'id':this.id,
             'type':'update',
             'name':'text',
             'value':$(this).val(),

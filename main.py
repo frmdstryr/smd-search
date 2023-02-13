@@ -55,7 +55,7 @@ class ViewerHandler(tornado.web.RequestHandler):
         )
 
         # Store the viewer in the cache
-        CACHE[viewer.ref] = viewer
+        CACHE[viewer.id] = viewer
 
         self.write(viewer.render())
 
@@ -65,14 +65,14 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
 
     def open(self):
         # Store the viewer in the cache
-        ref = self.get_argument("ref")
-        if ref not in CACHE:
-            log.error(f"Viewer with ref={ref} does not exist!")
+        id = self.get_argument("id")
+        if id not in CACHE:
+            log.error(f"Viewer with id={id} does not exist!")
             self.write_message(json.dumps({'type': 'reload'}))
             return
 
         # Get a viewer reference
-        self.viewer = CACHE[ref]
+        self.viewer = CACHE[id]
 
         # Setup an observer to watch changes on the enaml view
         self.viewer.observe('modified', self.on_dom_modified)
@@ -86,10 +86,10 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
         log.debug(f'Update from js: {change}')
         try:
             # Lookup the node
-            ref = change.get('ref')
-            if not ref:
+            id = change.get('id')
+            if not id:
                 return
-            nodes = self.viewer.xpath('//*[@ref=$ref]', ref=ref)
+            nodes = self.viewer.xpath('//*[@id=$id]', id=id)
             if not nodes:
                 return  # Unknown node
             node = nodes[0]
@@ -121,9 +121,9 @@ class ViewerWebSocket(tornado.websocket.WebSocketHandler):
         viewer = self.viewer
         if viewer is not None:
             viewer.unobserve('modified', self.on_dom_modified)
-            ref = viewer.ref
-            if ref in CACHE:
-                del CACHE[ref]
+            id = viewer.id
+            if id in CACHE:
+                del CACHE[id]
 
 
 def run():
